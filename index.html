@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Staff Call Sheet</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+  /* Layout: one stack per job. One large card on top; a swipe deals the next person. */
+  :root {
+    --bg: #F2F4FA;
+    --ink: #0B1533;
+    --muted: #38425F;
+    --btn: #0B1F5C;
+    --btn-ink: #FFFFFF;
+    --line: #0B1533;
+    --focus: #C2410C;
+    --caregiver: #B3261E;
+    --assistant: #0B3FA8;
+    --role-ink: #FFFFFF;
+    --armed: #FFD43B;
+    --under: #C9CFE0;
+    --font: "Atkinson Hyperlegible", Verdana, "Segoe UI", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #070B18; --ink: #F5F7FF; --muted: #C3CAE0;
+      --btn: #2A3558; --btn-ink: #FFFFFF;
+      --line: #F5F7FF; --focus: #FFFFFF;
+      --caregiver: #C62828; --assistant: #1E56C8; --armed: #FFD43B; --under: #1B2340;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #070B18; --ink: #F5F7FF; --muted: #C3CAE0;
+    --btn: #2A3558; --btn-ink: #FFFFFF;
+    --line: #F5F7FF; --focus: #FFFFFF;
+    --caregiver: #C62828; --assistant: #1E56C8; --armed: #FFD43B; --under: #1B2340;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 1.25rem;
+    line-height: 1.4;
+    overflow-x: hidden;
+  }
+  main {
+    max-width: 34rem;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 16px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  h1 { margin: 0; font-size: 1.5rem; line-height: 1.15; }
+  #status { margin: 0; color: var(--muted); min-height: 1.4em; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .row button, #restore {
+    flex: 1 1 8rem;
+    font: inherit;
+    font-weight: 700;
+    min-height: 60px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 3px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+  }
+  .row button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  #views button { min-height: 48px; font-size: 1.0625rem; }
+
+  /* The stack: two dummy cards peek out behind the top one. */
+  #stack { position: relative; padding-bottom: 20px; }
+  #stack::before, #stack::after {
+    content: "";
+    position: absolute;
+    left: 14px; right: 14px; bottom: 10px;
+    height: 40px;
+    border-radius: 18px;
+    background: var(--under);
+  }
+  #stack::after { left: 28px; right: 28px; bottom: 0; opacity: 0.6; }
+  #stack.last::before, #stack.last::after, #stack.none::before, #stack.none::after { display: none; }
+  #stack.two::after { display: none; }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    min-height: 21rem;
+    padding: 24px 22px;
+    border-radius: 18px;
+    border: 6px solid transparent;
+    background: var(--btn);
+    color: var(--btn-ink);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .card.caregiver { background: var(--caregiver); color: var(--role-ink); }
+  .card.assistant { background: var(--assistant); color: var(--role-ink); }
+  .card.armed { border-color: var(--armed); }
+  .card .name { font-size: 2.5rem; font-weight: 700; line-height: 1.1; }
+  .card .city { font-size: 1.75rem; }
+  .card .number { font-size: 1.75rem; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  .card .meta { font-size: 1.0625rem; }
+  .card.settle { transition: transform 140ms ease-out; }
+  @media (prefers-reduced-motion: reduce) { .card.settle { transition: none; } }
+
+  #count { margin: 0; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+  .how { margin: 0; color: var(--muted); font-size: 1.0625rem; text-align: center; }
+  .empty { border: 3px dashed var(--line); border-radius: 18px; padding: 24px; margin: 0; min-height: 12rem; display: flex; align-items: center; }
+  #unlock { display: flex; flex-direction: column; gap: 10px; }
+  #unlock label { font-weight: 700; }
+  #unlock input, #unlock button {
+    font: inherit; font-size: 1.375rem; min-height: 64px; padding: 14px 16px;
+    border-radius: 10px; border: 3px solid var(--line);
+  }
+  #unlock input { background: var(--bg); color: var(--ink); width: 100%; }
+  #unlock button { background: var(--ink); color: var(--bg); font-weight: 700; }
+  :focus-visible { outline: 5px solid var(--focus); outline-offset: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Staff Call Sheet</h1>
+
+  <div class="row" id="jobs" role="group" aria-label="Job stack"></div>
+  <div class="row" id="views" role="group" aria-label="Which pile to show">
+    <button type="button" data-view="open" aria-pressed="true">To call</button>
+    <button type="button" data-view="saved" aria-pressed="false">Saved</button>
+    <button type="button" data-view="archived" aria-pressed="false">Archived</button>
+  </div>
+
+  <p id="status" role="status" aria-live="polite">Loading.</p>
+
+  <form id="unlock" hidden>
+    <label for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false">
+    <button type="submit">Unlock</button>
+  </form>
+
+  <div id="stack" class="none"></div>
+  <p id="count"></p>
+  <p class="how" id="how"></p>
+  <button type="button" id="restore" hidden>Move back to To call</button>
+</main>
+
+<script>
+(function () {
+  var jobsEl = document.getElementById('jobs');
+  var stackEl = document.getElementById('stack');
+  var statusEl = document.getElementById('status');
+  var countEl = document.getElementById('count');
+  var howEl = document.getElementById('how');
+  var restoreBtn = document.getElementById('restore');
+  var viewBtns = [].slice.call(document.querySelectorAll('#views button'));
+  var VIEW_NAMES = { open: 'To call', saved: 'Saved', archived: 'Archived' };
+
+  var people = [];
+  var jobs = [];
+  var job = null;
+  var view = 'open';
+  var pos = 0;            // position while browsing Saved or Archived
+  var armedId = null;
+  var armedAt = 0;
+  var ARM_MS = 15000;
+  var TAP_KEY = 'staff-call-sheet.taps';
+  var STATES = { LA: 'Louisiana', TX: 'Texas', MS: 'Mississippi', AR: 'Arkansas', ME: 'Maine' };
+
+  function readTaps() {
+    try { return JSON.parse(localStorage.getItem(TAP_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function saveTap(id) {
+    var taps = readTaps();
+    taps[id] = Date.now();
+    try { localStorage.setItem(TAP_KEY, JSON.stringify(taps)); } catch (e) {}
+  }
+  function tappedText(ts) {
+    if (!ts) return '';
+    var d = new Date(ts), now = new Date();
+    var time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return 'Call tapped today at ' + time;
+    return 'Call tapped ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' at ' + time;
+  }
+
+  // Keep a leading + and the digits; everything else in a written number is punctuation.
+  function telHref(phone) {
+    var s = String(phone || '').trim();
+    var digits = s.replace(/\D/g, '');
+    if (digits.length < 7) return '';
+    return 'tel:' + (s.charAt(0) === '+' ? '+' : '') + digits;
+  }
+
+  function heard(p) {
+    var city = String(p.city || '').replace(/,\s*([A-Z]{2})$/, function (m, st) {
+      return STATES[st] ? ', ' + STATES[st] : m;
+    });
+    return p.name + (city ? ', ' + city : '');
+  }
+
+  function say(text) {
+    statusEl.textContent = text;
+    try {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    } catch (e) {}
+  }
+
+  function jobClass(name) {
+    var r = String(name || '').toLowerCase();
+    if (/care/.test(r)) return ' caregiver';
+    if (/personal\s*assistant/.test(r)) return ' assistant';
+    return '';
+  }
+
+  function span(cls, text) {
+    var s = document.createElement('span');
+    s.className = cls;
+    s.textContent = text;
+    return s;
+  }
+
+  function pile() {
+    return people.filter(function (p) { return p.status === view && p.jobs.indexOf(job) !== -1; });
+  }
+
+  function current() {
+    var list = pile();
+    if (!list.length) return null;
+    if (view === 'open') return list[0];
+    if (pos >= list.length) pos = list.length - 1;
+    if (pos < 0) pos = 0;
+    return list[pos];
+  }
+
+  function move(p, status) {
+    if (!p) return;
+    p.status = status;
+    armedId = null;
+    var word = status === 'saved' ? 'Saved ' : status === 'archived' ? 'Archived ' : 'Moved back to the call pile, ';
+    render();
+    var next = current();
+    say(word + p.name + '. ' + (next ? 'Next, ' + heard(next) + '.' : 'That was the last one in this pile.'));
+    saveStatus(p.id, status);
+  }
+
+  function onSwipe(p, dir) {
+    if (view === 'open') { move(p, dir === 'right' ? 'saved' : 'archived'); return; }
+    var n = pile().length;
+    if (n < 2) { say('Only one person in this pile.'); return; }
+    pos = (pos + (dir === 'left' ? 1 : -1) + n) % n;
+    armedId = null;
+    render();
+    say(heard(current()));
+  }
+
+  function attachSwipe(el, p) {
+    var startX = 0, startY = 0, dx = 0, tracking = false, swiped = false;
+    el.addEventListener('pointerdown', function (e) {
+      tracking = true; swiped = false; dx = 0;
+      startX = e.clientX; startY = e.clientY;
+      el.classList.remove('settle');
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (!tracking) return;
+      dx = e.clientX - startX;
+      var dy = e.clientY - startY;
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        el.style.transform = 'translateX(' + dx + 'px) rotate(' + (dx / 40) + 'deg)';
+      }
+    });
+    el.addEventListener('pointerup', function () {
+      if (!tracking) return;
+      tracking = false;
+      if (Math.abs(dx) > 80) {
+        swiped = true;
+        onSwipe(p, dx > 0 ? 'right' : 'left');
+      } else {
+        el.classList.add('settle');
+        el.style.transform = '';
+      }
+    });
+    el.addEventListener('pointercancel', function () {
+      tracking = false; el.classList.add('settle'); el.style.transform = '';
+    });
+    el.addEventListener('click', function (e) {
+      if (swiped) { e.preventDefault(); e.stopImmediatePropagation(); swiped = false; }
+    }, true);
+    el.addEventListener('dragstart', function (e) { e.preventDefault(); });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight') { e.preventDefault(); onSwipe(p, 'right'); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); onSwipe(p, 'left'); }
+    });
+  }
+
+  function buildCard(p) {
+    var href = telHref(p.phone);
+    var el = document.createElement(href ? 'a' : 'div');
+    el.className = 'card' + jobClass(job) + (armedId === p.id ? ' armed' : '');
+    if (href) {
+      el.href = href;
+      el.setAttribute('aria-label', heard(p) + '. Tap to hear, tap again to call.');
+      el.addEventListener('click', function (e) {
+        var isArmed = armedId === p.id && Date.now() - armedAt < ARM_MS;
+        if (!isArmed) {
+          e.preventDefault();
+          armedId = p.id;
+          armedAt = Date.now();
+          el.classList.add('armed');
+          say(heard(p) + '. Tap again to call.');
+          return;
+        }
+        armedId = null;
+        el.classList.remove('armed');
+        saveTap(p.id);
+      });
+    } else {
+      el.setAttribute('role', 'button');
+      el.setAttribute('tabindex', '0');
+      el.addEventListener('click', function () { say(heard(p) + '. No phone number on file.'); });
+    }
+    el.appendChild(span('name', p.name));
+    if (p.city) el.appendChild(span('city', p.city));
+    el.appendChild(span('number', href ? String(p.phone) : 'No phone number on file'));
+    var tapped = tappedText(readTaps()[p.id]);
+    if (tapped) el.appendChild(span('meta', tapped));
+    attachSwipe(el, p);
+    return el;
+  }
+
+  function render() {
+    jobsEl.textContent = '';
+    jobs.forEach(function (j) {
+      var n = people.filter(function (p) { return p.status === view && p.jobs.indexOf(j) !== -1; }).length;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = j + ' (' + n + ')';
+      b.setAttribute('aria-pressed', String(j === job));
+      b.addEventListener('click', function () {
+        job = j; pos = 0; armedId = null;
+        render();
+        var c = current();
+        say(j + ', ' + n + (n === 1 ? ' person' : ' people') + '. ' + (c ? 'First, ' + heard(c) + '.' : ''));
+      });
+      jobsEl.appendChild(b);
+    });
+    viewBtns.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-view') === view));
+    });
+
+    var list = pile();
+    var p = current();
+    stackEl.textContent = '';
+    stackEl.className = !p ? 'none' : list.length === 1 ? 'last' : list.length === 2 ? 'two' : '';
+    restoreBtn.hidden = !(p && view !== 'open');
+
+    if (!p) {
+      var e = document.createElement('p');
+      e.className = 'empty';
+      e.textContent = !people.length
+        ? 'No one is here yet. People will appear here as a stack of cards once the list is published.'
+        : 'No one left in ' + VIEW_NAMES[view] + ' for this job.';
+      stackEl.appendChild(e);
+      countEl.textContent = '';
+      howEl.textContent = '';
+      return;
+    }
+    stackEl.appendChild(buildCard(p));
+    if (view === 'open') {
+      countEl.textContent = list.length + ' left to call';
+      howEl.textContent = 'Tap to hear. Tap again to call. Swipe right to save, left to archive.';
+    } else {
+      countEl.textContent = (pos + 1) + ' of ' + list.length + ' ' + VIEW_NAMES[view].toLowerCase();
+      howEl.textContent = 'Tap to hear. Tap again to call. Swipe for the next person.';
+    }
+  }
+
+  function fail(text) {
+    stackEl.textContent = '';
+    stackEl.className = 'none';
+    var e = document.createElement('p');
+    e.className = 'empty';
+    e.textContent = text;
+    stackEl.appendChild(e);
+    statusEl.textContent = text;
+  }
+
+  viewBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      view = b.getAttribute('data-view');
+      pos = 0; armedId = null;
+      render();
+      var n = pile().length, c = current();
+      say(VIEW_NAMES[view] + ', ' + n + (n === 1 ? ' person' : ' people') + '. ' + (c ? 'First, ' + heard(c) + '.' : ''));
+    });
+  });
+  restoreBtn.addEventListener('click', function () { move(current(), 'open'); });
+
+  var STATUS_KEY = 'staff-call-sheet.status';
+  var PASS_KEY = 'staff-call-sheet.pass';
+  var unlockEl = document.getElementById('unlock');
+  var pwEl = document.getElementById('pw');
+  var file = null;
+
+  // Saved and Archived live on this phone only.
+  function readStatus() {
+    try { return JSON.parse(localStorage.getItem(STATUS_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function saveStatus(id, status) {
+    var m = readStatus();
+    if (status === 'open') delete m[id]; else m[id] = status;
+    try { localStorage.setItem(STATUS_KEY, JSON.stringify(m)); } catch (e) { say('That did not save on this phone.'); }
+  }
+
+  function bytes(text) {
+    var bin = atob(text);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  // The published list is encrypted. The password never leaves this phone.
+  async function decrypt(f, password) {
+    var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+    var key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', hash: 'SHA-256', salt: bytes(f.salt), iterations: f.iterations },
+      base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes(f.iv) }, key, bytes(f.data));
+    return JSON.parse(new TextDecoder().decode(plain));
+  }
+
+  function load(rows) {
+    var st = readStatus();
+    people = rows.map(function (v) {
+      var js = String(v.role || 'Other').split(/\s+and\s+/).map(function (x) { return x.trim(); }).filter(Boolean);
+      return {
+        id: String(v.id),
+        name: String(v.name || 'Unnamed'),
+        city: String(v.city || ''),
+        jobs: js.length ? js : ['Other'],
+        phone: v.phone == null ? '' : String(v.phone),
+        status: st[v.id] === 'saved' || st[v.id] === 'archived' ? st[v.id] : 'open',
+        order: typeof v.order === 'number' ? v.order : Infinity
+      };
+    }).sort(function (x, y) { return (x.order - y.order) || x.name.localeCompare(y.name); });
+    jobs = [];
+    people.forEach(function (p) {
+      p.jobs.forEach(function (j) { if (jobs.indexOf(j) === -1) jobs.push(j); });
+    });
+    if (jobs.indexOf(job) === -1) job = jobs[0] || null;
+    render();
+  }
+
+  async function tryUnlock(password, remember) {
+    try {
+      var rows = await decrypt(file, password);
+      if (remember) { try { localStorage.setItem(PASS_KEY, password); } catch (e) {} }
+      unlockEl.hidden = true;
+      load(rows);
+      say('Unlocked. Pick a job, then tap the card to hear the name.');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  unlockEl.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    statusEl.textContent = 'Checking.';
+    if (!(await tryUnlock(pwEl.value.trim(), true))) {
+      say('Wrong password. Try again.');
+      pwEl.select();
+    }
+  });
+
+  async function start() {
+    try {
+      var res = await fetch('people.enc.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('missing');
+      file = await res.json();
+    } catch (e) {
+      fail('No one has been added yet.');
+      return;
+    }
+    var saved = '';
+    try { saved = localStorage.getItem(PASS_KEY) || ''; } catch (e) {}
+    if (saved && (await tryUnlock(saved, false))) return;
+    stackEl.textContent = '';
+    unlockEl.hidden = false;
+    statusEl.textContent = 'Enter the password to open the list.';
+  }
+
+  start();
+})();
+</script>
+</body>
+</html>
